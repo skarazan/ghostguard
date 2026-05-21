@@ -136,7 +136,10 @@ GhostGuard.scorer = (function () {
       const keywords = GhostGuard.data.techKeywords || [];
       let hits = 0;
       for (const kw of keywords) {
-        if (new RegExp(`\\b${kw.replace('.', '\\.')}\\b`, 'i').test(text)) hits++;
+        try {
+          const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          if (new RegExp(`(?:^|\\W)${escaped}(?:\\W|$)`, 'i').test(text)) hits++;
+        } catch (_) {}
       }
       const triggered = hits > 5;
       return { triggered, points: triggered ? -10 : 0, label: `Specific tech stack mentioned (${hits} tools)` };
