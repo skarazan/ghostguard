@@ -27,7 +27,7 @@
 
   const DETAIL_SELECTORS = {
     linkedin:  '.jobs-details, .jobs-unified-top-card, .job-view-layout',
-    indeed:    '#jobDescriptionText, .jobsearch-ViewJobLayout',
+    indeed:    '#jobsearch-ViewjobPaneWrapper, .jobsearch-RightPane, [data-testid="jobDetailPage"], .jobsearch-ViewJobLayout',
     glassdoor: '[class*="JobDetails_jobDetailContainer"], [class*="jobDetails"]'
   };
 

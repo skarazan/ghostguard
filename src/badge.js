@@ -193,7 +193,7 @@ GhostGuard.badge = (function () {
     anchor.appendChild(badgeEl);
 
     const titleEl = containerEl.querySelector(
-      '.jobs-unified-top-card__job-title, .t-24.t-bold, h1, h2'
+      '.jobs-unified-top-card__job-title, .t-24.t-bold, h1'
     );
 
     if (titleEl?.parentElement) {
