@@ -4,14 +4,12 @@ GhostGuard.observer = (function () {
 
   let mo = null;
   let debounceTimer = null;
-  let _processCardsFn = null;
 
   function debounce(fn, ms) {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(fn, ms);
   }
 
-  // Filter out mutations caused by our own badge injections
   function isExternalMutation(mutations) {
     return mutations.some(m =>
       Array.from(m.addedNodes).some(n => !n.classList?.contains('gg-badge-host'))
@@ -20,27 +18,30 @@ GhostGuard.observer = (function () {
 
   function start(processCardsFn) {
     if (mo) return;
-    _processCardsFn = processCardsFn;
 
+    // 1. MutationObserver — catches new cards as React renders them
     mo = new MutationObserver((mutations) => {
       if (isExternalMutation(mutations)) {
         debounce(() => processCardsFn(false), 50);
       }
     });
-
     mo.observe(document.body, { childList: true, subtree: true });
 
-    // SPA nav fallback — background.js handles this via webNavigation API
-    // but keep a lightweight URL poller as belt-and-suspenders
+    // 2. URL poller — catches SPA navigations (pushState)
     let lastHref = location.href;
     setInterval(() => {
       if (location.href !== lastHref) {
         lastHref = location.href;
-        debounce(() => processCardsFn(true), 100);
+        processCardsFn(true);
       }
-    }, 500);
+    }, 400);
 
-    window.addEventListener('popstate', () => debounce(() => processCardsFn(true), 100));
+    // 3. Heartbeat — catches anything the above two miss
+    //    processCard bails instantly on already-scored cards, so this is cheap
+    setInterval(() => processCardsFn(false), 2000);
+
+    // 4. popstate (back/forward button)
+    window.addEventListener('popstate', () => processCardsFn(true));
 
     // Initial run
     processCardsFn(false);
