@@ -135,31 +135,77 @@ GhostGuard.badge = (function () {
     return host;
   }
 
+  function findCardAnchor(cardEl) {
+    return cardEl.querySelector(
+      '.job-card-container__header, .job-card-container__content, .job-card-list__title-container, .artdeco-entity-lockup__title, [data-view-name="job-card"] a[href*="/jobs/view/"], a[href*="/jobs/view/"], h3, h2, [data-test="job-link"]'
+    );
+  }
+
   // ── Inject badge into a card ──────────────────────────────────────────────
 
   function injectBadge(cardEl, result) {
     if (!result) return;
     // dataset.ggScored is managed by content.js; badge.js just injects
-    const titleEl = cardEl.querySelector(
-      '.job-card-list__title, .artdeco-entity-lockup__title, h3, h2, [data-test="job-link"]'
-    );
+    cardEl.querySelectorAll('.gg-badge-host, .gg-card-badge-anchor').forEach(el => el.remove());
+
+    const titleEl = findCardAnchor(cardEl);
 
     const badgeEl = createBadgeElement(result);
+    const anchor = document.createElement('span');
+    anchor.className = 'gg-card-badge-anchor';
+    anchor.style.display = 'inline-flex';
+    anchor.style.alignItems = 'center';
+    anchor.style.verticalAlign = 'middle';
+    anchor.appendChild(badgeEl);
 
     if (titleEl) {
-      titleEl.style.display = 'inline';
-      titleEl.after(badgeEl);
+      const wrapper = titleEl.closest('h3, h2, a, div') || titleEl;
+      if (wrapper instanceof HTMLElement && getComputedStyle(wrapper).display === 'block') {
+        anchor.style.marginLeft = '6px';
+      }
+      titleEl.insertAdjacentElement('afterend', anchor);
     } else {
       cardEl.style.position = 'relative';
-      badgeEl.style.position = 'absolute';
-      badgeEl.style.top = '8px';
-      badgeEl.style.right = '8px';
-      cardEl.appendChild(badgeEl);
+      anchor.style.position = 'absolute';
+      anchor.style.top = '10px';
+      anchor.style.right = '12px';
+      anchor.style.zIndex = '9999';
+      cardEl.appendChild(anchor);
     }
 
     if (typeof GhostGuard.storage !== 'undefined') {
       GhostGuard.storage.incrementStat(result.tier.color);
     }
+  }
+
+  function injectDetailBadge(containerEl, result) {
+    if (!containerEl || !result) return;
+
+    containerEl.querySelectorAll('.gg-detail-badge-anchor').forEach(el => el.remove());
+
+    const badgeEl = createBadgeElement(result);
+    const anchor = document.createElement('div');
+    anchor.className = 'gg-detail-badge-anchor';
+    anchor.style.display = 'flex';
+    anchor.style.alignItems = 'center';
+    anchor.style.gap = '8px';
+    anchor.style.margin = '8px 0 12px';
+    anchor.appendChild(badgeEl);
+
+    const titleEl = containerEl.querySelector(
+      '.jobs-unified-top-card__job-title, .t-24.t-bold, h1, h2'
+    );
+
+    if (titleEl?.parentElement) {
+      titleEl.insertAdjacentElement('afterend', anchor);
+      return;
+    }
+
+    const topCard = containerEl.querySelector('.jobs-unified-top-card') || containerEl;
+    if (getComputedStyle(topCard).position === 'static') {
+      topCard.style.position = 'relative';
+    }
+    topCard.prepend(anchor);
   }
 
   // ── Detail panel — P4: all job data escaped ───────────────────────────────
@@ -305,5 +351,5 @@ GhostGuard.badge = (function () {
     });
   }
 
-  return { injectBadge, openDetailPanel, closeDetailPanel, setVisible, setTooltipsEnabled };
+  return { injectBadge, injectDetailBadge, openDetailPanel, closeDetailPanel, setVisible, setTooltipsEnabled };
 }());
