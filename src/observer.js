@@ -33,14 +33,27 @@ GhostGuard.observer = (function () {
     // SPA navigation — poll URL instead of patching pushState
     // (LinkedIn's React router overwrites pushState after our injection)
     let lastHref = location.href;
+    let retryTimer = null;
+
+    function onNavChange() {
+      processCardsFn(true);
+      // Retry every 300ms for 4s — React may render cards well after URL changes
+      let attempts = 0;
+      clearInterval(retryTimer);
+      retryTimer = setInterval(() => {
+        processCardsFn(false);
+        if (++attempts >= 13) clearInterval(retryTimer);
+      }, 300);
+    }
+
     setInterval(() => {
       if (location.href !== lastHref) {
         lastHref = location.href;
-        debounce(() => processCardsFn(true), 100);
+        setTimeout(onNavChange, 50);
       }
-    }, 250);
+    }, 200);
 
-    window.addEventListener('popstate', () => debounce(() => processCardsFn(true), 100));
+    window.addEventListener('popstate', () => setTimeout(onNavChange, 50));
 
     // Initial run
     processCardsFn(false);
