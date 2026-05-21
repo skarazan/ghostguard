@@ -109,10 +109,16 @@ GhostGuard.scrapers.indeed = (function () {
     const descriptionText = panelEl.querySelector('#jobDescriptionText, .jobsearch-jobDescriptionText')?.innerText || '';
 
     const easyApply = !!panelEl.querySelector('.indeedApplyButton, [data-indeed-apply]');
-    const hasExternalLink = !easyApply;
+    // P12: don't infer external link from absence of easy-apply — check explicitly
+    const hasExternalLink = !easyApply &&
+      !!panelEl.querySelector('a[href*="apply"]:not([data-indeed-apply]), .applyButtonContainer a');
+
+    // P17: extract jobId from URL
+    const urlMatch = (typeof window !== 'undefined' ? window.location.href : '').match(/jk=([a-f0-9]+)/i);
+    const jobId = urlMatch ? `indeed_${urlMatch[1]}` : null;
 
     return {
-      jobId: null,
+      jobId,
       title,
       company,
       location,

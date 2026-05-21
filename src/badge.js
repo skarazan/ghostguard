@@ -21,18 +21,31 @@ GhostGuard.badge = (function () {
     return scheme[tier.color] || scheme.yellow;
   }
 
+  // P4: sanitize any string going into innerHTML
+  function esc(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   // ── Shadow DOM badge ──────────────────────────────────────────────────────
+
+  let tooltipsEnabled = true;
 
   function buildBadgeHTML(result) {
     const c = getColors(result.tier);
     const top3 = result.reasons.slice(0, 3);
-    const darkBg = darkMode() ? '#1e1b4b' : '#fff';
+    const darkBg   = darkMode() ? '#1e1b4b' : '#fff';
     const darkText = darkMode() ? '#e2e8f0' : '#1e293b';
 
+    // Labels come from scorer constants + integers — safe, but esc() anyway for future-proofing
     const tooltipRows = top3.map(r => `
       <div class="gg-tip-row">
         <span class="gg-tip-points" style="color:${r.points > 0 ? '#b91c1c' : '#15803d'}">${r.points > 0 ? '+' : ''}${r.points}</span>
-        <span class="gg-tip-label">${r.label}</span>
+        <span class="gg-tip-label">${esc(r.label)}</span>
       </div>`).join('');
 
     return `
@@ -69,12 +82,13 @@ GhostGuard.badge = (function () {
         .gg-tip-label { color: ${darkText}; opacity: 0.85; }
         .gg-tip-footer { padding: 5px 12px 8px; font-size: 10px; opacity: 0.55; border-top: 1px solid #e2e8f0; margin-top: 4px; }
         :host(.gg-hidden) { display: none !important; }
+        :host(.gg-no-tooltip) .gg-tooltip { display: none !important; }
       </style>
-      <div class="gg-pill" tabindex="0" role="button" aria-label="${result.tier.label} — Score ${result.score}. Click for details.">
-        <span class="gg-dot"></span>${result.score} ${result.tier.label}
+      <div class="gg-pill" tabindex="0" role="button" aria-label="${esc(result.tier.label)} — Score ${result.score}. Click for details.">
+        <span class="gg-dot"></span>${result.score} ${esc(result.tier.label)}
       </div>
       <div class="gg-tooltip" role="tooltip">
-        <div class="gg-tip-header">${result.tier.emoji} ${result.tier.label} — Score ${result.score}</div>
+        <div class="gg-tip-header">${esc(result.tier.emoji)} ${esc(result.tier.label)} — Score ${result.score}</div>
         <div class="gg-tip-body">${tooltipRows || '<div style="font-size:11px;opacity:0.6">No strong signals detected</div>'}</div>
         <div class="gg-tip-footer">Click for full breakdown</div>
       </div>
@@ -86,16 +100,18 @@ GhostGuard.badge = (function () {
     host.className = 'gg-badge-host';
     host.dataset.ggJobId = result.jobData.jobId || '';
     host.dataset.ggScore = result.score;
+    if (!tooltipsEnabled) host.classList.add('gg-no-tooltip');
 
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = buildBadgeHTML(result);
 
-    const pill = shadow.querySelector('.gg-pill');
+    const pill    = shadow.querySelector('.gg-pill');
     const tooltip = shadow.querySelector('.gg-tooltip');
 
     let hoverTimer = null;
 
     pill.addEventListener('mouseenter', () => {
+      if (!tooltipsEnabled) return;
       hoverTimer = setTimeout(() => { tooltip.style.display = 'block'; }, 300);
     });
     pill.addEventListener('mouseleave', () => {
@@ -122,12 +138,11 @@ GhostGuard.badge = (function () {
   // ── Inject badge into a card ──────────────────────────────────────────────
 
   function injectBadge(cardEl, result) {
-    if (!result || cardEl.dataset.ggScored) return;
-    cardEl.dataset.ggScored = '1';
-
-    // Find best anchor: job title element
-    const titleEl =
-      cardEl.querySelector('.job-card-list__title, .artdeco-entity-lockup__title, h3, h2, [data-test="job-link"]');
+    if (!result) return;
+    // dataset.ggScored is managed by content.js; badge.js just injects
+    const titleEl = cardEl.querySelector(
+      '.job-card-list__title, .artdeco-entity-lockup__title, h3, h2, [data-test="job-link"]'
+    );
 
     const badgeEl = createBadgeElement(result);
 
@@ -135,7 +150,6 @@ GhostGuard.badge = (function () {
       titleEl.style.display = 'inline';
       titleEl.after(badgeEl);
     } else {
-      // Fallback: prepend to card
       cardEl.style.position = 'relative';
       badgeEl.style.position = 'absolute';
       badgeEl.style.top = '8px';
@@ -143,18 +157,17 @@ GhostGuard.badge = (function () {
       cardEl.appendChild(badgeEl);
     }
 
-    // Update storage stats
     if (typeof GhostGuard.storage !== 'undefined') {
       GhostGuard.storage.incrementStat(result.tier.color);
     }
   }
 
-  // ── Detail panel ──────────────────────────────────────────────────────────
+  // ── Detail panel — P4: all job data escaped ───────────────────────────────
 
   function openDetailPanel(result) {
     closeDetailPanel();
 
-    const darkBg = darkMode() ? '#1e1b4b' : '#fff';
+    const darkBg   = darkMode() ? '#1e1b4b' : '#fff';
     const darkText = darkMode() ? '#e2e8f0' : '#1e293b';
     const c = getColors(result.tier);
 
@@ -165,18 +178,27 @@ GhostGuard.badge = (function () {
     const panel = document.createElement('div');
     panel.className = 'gg-detail-panel';
 
-    const allReasons = result.reasons;
-    const positiveReasons = allReasons.filter(r => r.points < 0);
-    const negativeReasons = allReasons.filter(r => r.points > 0);
+    const positiveReasons = result.reasons.filter(r => r.points < 0);
+    const negativeReasons = result.reasons.filter(r => r.points > 0);
 
     function reasonsHTML(list) {
       if (!list.length) return '<div class="gg-panel-none">None detected.</div>';
       return list.map(r => `
         <div class="gg-panel-reason">
           <span class="gg-panel-pts" style="color:${r.points > 0 ? '#b91c1c' : '#15803d'}">${r.points > 0 ? '+' : ''}${r.points}</span>
-          <span>${r.label}</span>
+          <span>${esc(r.label)}</span>
         </div>`).join('');
     }
+
+    // Build job info line safely using DOM, not innerHTML
+    const jobInfoParts = [];
+    if (result.jobData.title) {
+      jobInfoParts.push(`<strong>${esc(result.jobData.title)}</strong> at <strong>${esc(result.jobData.company || '—')}</strong>`);
+    }
+    if (result.jobData.daysPosted != null) {
+      jobInfoParts.push(`Posted ${result.jobData.daysPosted} days ago`);
+    }
+    const jobInfoHTML = jobInfoParts.join('<br>');
 
     panel.innerHTML = `
       <style>
@@ -196,12 +218,8 @@ GhostGuard.badge = (function () {
         .gg-panel-hero {
           padding: 20px; text-align: center; background: ${c.bg}; border-bottom: 1px solid ${c.border};
         }
-        .gg-panel-hero-label {
-          font-size: 18px; font-weight: 800; color: ${c.text}; margin-bottom: 4px;
-        }
-        .gg-panel-hero-score {
-          font-size: 36px; font-weight: 900; color: ${c.text};
-        }
+        .gg-panel-hero-label { font-size: 18px; font-weight: 800; color: ${c.text}; margin-bottom: 4px; }
+        .gg-panel-hero-score { font-size: 36px; font-weight: 900; color: ${c.text}; }
         .gg-panel-hero-sub { font-size: 12px; color: ${c.text}; opacity: 0.7; margin-top: 4px; }
         .gg-panel-body { padding: 20px; background: ${darkBg}; }
         .gg-panel-section-title {
@@ -228,7 +246,7 @@ GhostGuard.badge = (function () {
         <button class="gg-panel-close" id="gg-close-btn" aria-label="Close">×</button>
       </div>
       <div class="gg-panel-hero">
-        <div class="gg-panel-hero-label">${result.tier.emoji} ${result.tier.label}</div>
+        <div class="gg-panel-hero-label">${esc(result.tier.emoji)} ${esc(result.tier.label)}</div>
         <div class="gg-panel-hero-score">${result.score}</div>
         <div class="gg-panel-hero-sub">out of 100</div>
       </div>
@@ -237,10 +255,7 @@ GhostGuard.badge = (function () {
         ${reasonsHTML(negativeReasons.length ? negativeReasons : [])}
         <div class="gg-panel-section-title">Positive signals</div>
         ${reasonsHTML(positiveReasons)}
-        <div class="gg-panel-job-info">
-          ${result.jobData.title ? `<strong>${result.jobData.title}</strong> at <strong>${result.jobData.company || '—'}</strong><br>` : ''}
-          ${result.jobData.daysPosted != null ? `Posted ${result.jobData.daysPosted} days ago` : ''}
-        </div>
+        <div class="gg-panel-job-info">${jobInfoHTML}</div>
       </div>
       <div class="gg-panel-footer">
         <button class="gg-panel-flag" id="gg-flag-btn">Flag this score as inaccurate</button>
@@ -252,18 +267,17 @@ GhostGuard.badge = (function () {
       if (typeof GhostGuard.storage !== 'undefined') {
         GhostGuard.storage.flagInaccurate(result);
       }
-      panel.querySelector('#gg-flag-btn').textContent = 'Flagged — thank you';
-      panel.querySelector('#gg-flag-btn').disabled = true;
+      const btn = panel.querySelector('#gg-flag-btn');
+      btn.textContent = 'Flagged — thank you';
+      btn.disabled = true;
     });
 
     document.body.appendChild(backdrop);
     document.body.appendChild(panel);
-
-    // Animate in
     requestAnimationFrame(() => panel.classList.add('gg-open'));
 
-    // Esc to close
-    document.addEventListener('keydown', handlePanelEsc, { once: true });
+    // P11: persistent listener (not { once: true }) — removed in closeDetailPanel
+    document.addEventListener('keydown', handlePanelEsc);
   }
 
   function handlePanelEsc(e) {
@@ -275,7 +289,7 @@ GhostGuard.badge = (function () {
     document.removeEventListener('keydown', handlePanelEsc);
   }
 
-  // ── Show/hide all badges ──────────────────────────────────────────────────
+  // ── Visibility toggles ────────────────────────────────────────────────────
 
   function setVisible(visible) {
     document.querySelectorAll('.gg-badge-host').forEach(host => {
@@ -283,5 +297,13 @@ GhostGuard.badge = (function () {
     });
   }
 
-  return { injectBadge, openDetailPanel, closeDetailPanel, setVisible };
+  // P10: tooltip toggle
+  function setTooltipsEnabled(enabled) {
+    tooltipsEnabled = enabled;
+    document.querySelectorAll('.gg-badge-host').forEach(host => {
+      host.classList.toggle('gg-no-tooltip', !enabled);
+    });
+  }
+
+  return { injectBadge, openDetailPanel, closeDetailPanel, setVisible, setTooltipsEnabled };
 }());

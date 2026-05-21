@@ -654,9 +654,11 @@ console.log('\n── salaryText format variations ─────────�
 }
 
 {
-  // "salary: competitive" — noSalaryRange: has "salary" keyword → won't fire; salaryPresent: no $\d+ → won't fire
+  // "salary: competitive" — P6 fix removed bare \bsalary\b from hasSalary regex.
+  // Vague phrase does not count as a real range → noSalaryRange DOES fire.
+  // salaryPresent still requires $\d+ → does NOT fire.
   const r = score(baseJob({ salaryText: 'salary: competitive' }));
-  assert(!hasReason(r, 'No salary range listed', 15), 'salaryText "salary: competitive" → noSalaryRange does NOT fire (has "salary" keyword)');
+  assert(hasReason(r, 'No salary range listed', 15), 'salaryText "salary: competitive" → noSalaryRange DOES fire (vague phrase, no real range)');
   assert(!hasReason(r, 'Salary range disclosed', -20), 'salaryText "salary: competitive" → salaryPresent does NOT fire (no $\\d+)');
 }
 

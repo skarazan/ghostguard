@@ -7,7 +7,37 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="gg-popup">
+
+  <!-- P25: ToS consent screen — shown once, hidden after acceptance -->
+  <div class="gg-popup" id="tos-screen" style="display:none">
+    <header class="gg-header">
+      <img src="../../icons/icon48.png" alt="" class="gg-logo" width="24" height="24">
+      <span class="gg-brand">GhostGuard</span>
+    </header>
+    <section class="gg-tos-body">
+      <p class="gg-tos-heading">Before you start</p>
+      <p class="gg-tos-text">
+        GhostGuard reads job listing pages you visit to score them locally in your browser.
+        <strong>No data ever leaves your device.</strong>
+      </p>
+      <p class="gg-tos-text">
+        LinkedIn, Indeed, and Glassdoor's Terms of Service prohibit automated reading of their pages.
+        Using this extension may violate those terms and could result in account restrictions on those platforms.
+        <strong>You use this extension at your own risk.</strong>
+      </p>
+      <p class="gg-tos-text">
+        Under US law (hiQ&nbsp;v.&nbsp;LinkedIn, 9th Cir.&nbsp;2022), reading pages you have legitimate access
+        to is not a federal crime. GhostGuard does not bypass any login or technical control.
+      </p>
+      <button class="gg-btn-accept" id="btn-accept">I understand — let's go</button>
+      <a class="gg-link" style="display:block;text-align:center;margin-top:10px"
+         href="https://github.com/skarazan/ghostguard/blob/main/PRIVACY.md"
+         target="_blank" rel="noopener noreferrer">Privacy policy</a>
+    </section>
+  </div>
+
+  <!-- Main popup — shown after ToS accepted -->
+  <div class="gg-popup" id="main-screen" style="display:none">
     <header class="gg-header">
       <img src="../../icons/icon48.png" alt="" class="gg-logo" width="24" height="24">
       <span class="gg-brand">GhostGuard</span>
@@ -58,7 +88,9 @@
 
     <footer class="gg-footer">
       <button class="gg-btn-ghost" id="btn-reset">Reset session stats</button>
-      <a class="gg-link" href="https://github.com/skarazan/ghostguard/issues" target="_blank">Help / Feedback</a>
+      <!-- P22: rel="noopener noreferrer" -->
+      <a class="gg-link" href="https://github.com/skarazan/ghostguard/issues"
+         target="_blank" rel="noopener noreferrer">Help / Feedback</a>
     </footer>
   </div>
 

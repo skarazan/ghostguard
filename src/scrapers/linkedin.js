@@ -46,6 +46,10 @@ GhostGuard.scrapers.linkedin = (function () {
     const hoursMatch = t.match(/(\d+)\s*hour/);
     if (hoursMatch) return 0;
 
+    // "30+ days ago" — treat as the floor value
+    const plusMatch = t.match(/(\d+)\+\s*day/);
+    if (plusMatch) return parseInt(plusMatch[1], 10);
+
     // "X days ago" or "X day ago"
     const daysMatch = t.match(/(\d+)\s*day/);
     if (daysMatch) return parseInt(daysMatch[1], 10);
@@ -136,8 +140,57 @@ GhostGuard.scrapers.linkedin = (function () {
     };
   }
 
+  // P23: JSON-LD extraction — primary data source on detail pages, immune to CSS churn
+  function extractFromJsonLd() {
+    try {
+      const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+      for (const script of scripts) {
+        const json = JSON.parse(script.textContent);
+        const job = Array.isArray(json) ? json.find(j => j['@type'] === 'JobPosting') : (json['@type'] === 'JobPosting' ? json : null);
+        if (!job) continue;
+
+        const datePosted = job.datePosted ? new Date(job.datePosted) : null;
+        const daysPosted = datePosted && !isNaN(datePosted)
+          ? Math.max(0, Math.floor((Date.now() - datePosted.getTime()) / 86400000))
+          : null;
+
+        const salary = job.baseSalary;
+        let salaryText = '';
+        if (salary?.value) {
+          const v = salary.value;
+          if (v.minValue && v.maxValue) salaryText = `$${v.minValue}–$${v.maxValue}`;
+          else if (v.value) salaryText = `$${v.value}`;
+        }
+
+        const urlMatch = (job.url || window.location.href).match(/\/jobs\/view\/(\d+)/);
+        const jobId = urlMatch ? urlMatch[1] : null;
+
+        return {
+          jobId,
+          title: job.title || '',
+          company: (typeof job.hiringOrganization === 'string' ? job.hiringOrganization : job.hiringOrganization?.name) || '',
+          location: (typeof job.jobLocation === 'string' ? job.jobLocation : job.jobLocation?.address?.addressLocality) || '',
+          daysPosted,
+          reposted: false,
+          applicantCount: null,
+          salaryText,
+          hasExternalLink: false,
+          easyApply: false,
+          descriptionText: job.description || '',
+          posterVisible: false,
+          verifiedCompany: false,
+          source: 'linkedin-jsonld'
+        };
+      }
+    } catch (_) {}
+    return null;
+  }
+
   function extractFromDetail(panelEl) {
-    const jobId = extractJobId(panelEl);
+    // Try structured data first — most reliable, no CSS dependency
+    const ld = extractFromJsonLd();
+
+    const jobId = ld?.jobId || extractJobId(panelEl);
 
     const title = getText(
       panelEl,
@@ -208,21 +261,22 @@ GhostGuard.scrapers.linkedin = (function () {
       '.jobs-unified-top-card__verified-badge, [aria-label*="Verified company"]'
     );
 
+    // Merge: prefer JSON-LD values where available (more stable), DOM fills the gaps
     return {
       jobId,
-      title,
-      company,
-      location,
-      daysPosted: parseDaysAgo(postedText),
+      title:          ld?.title      || title,
+      company:        ld?.company    || company,
+      location:       ld?.location   || location,
+      daysPosted:     ld?.daysPosted ?? parseDaysAgo(postedText),
       reposted,
       applicantCount: parseApplicantCount(applicantText),
-      salaryText: salaryText.trim(),
+      salaryText:     (ld?.salaryText || salaryText).trim(),
       hasExternalLink,
       easyApply,
-      descriptionText,
+      descriptionText: ld?.descriptionText || descriptionText,
       posterVisible,
       verifiedCompany,
-      source: 'linkedin-detail'
+      source: ld ? 'linkedin-jsonld+dom' : 'linkedin-detail'
     };
   }
 

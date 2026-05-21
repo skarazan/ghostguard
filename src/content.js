@@ -1,5 +1,4 @@
 // GhostGuard — main content script entry point
-// Runs after all other GhostGuard scripts are loaded via manifest ordering.
 
 (function () {
 
@@ -10,12 +9,11 @@
 
   if (!isLinkedIn && !isIndeed && !isGlassdoor) return;
 
-  // ── Card selectors per platform ──────────────────────────────────────────
-
   const CARD_SELECTORS = {
     linkedin:  '.job-card-container, .jobs-search-results__list-item, [data-occludable-job-id]',
     indeed:    '.job_seen_beacon, .jobsearch-ResultsList > li[class], .resultContent',
-    glassdoor: '[class*="JobsList_jobListItem"], [class*="jobCard"], [data-test="jobListing"]'
+    // data-test="jobListing" is the stable anchor; class* fallbacks for older builds
+    glassdoor: '[data-test="jobListing"], [class*="JobsList_jobListItem"], [class*="jobCard"]'
   };
 
   const DETAIL_SELECTORS = {
@@ -29,23 +27,35 @@
 
   let settings = { showBadges: true, showTooltips: true, dimGhosts: false };
 
-  // Load settings once
-  GhostGuard.storage.getSettings().then(s => { settings = s; });
+  // ── P15: await settings before starting observer ──────────────────────────
+  GhostGuard.storage.getSettings().then(s => {
+    settings = s;
+    GhostGuard.observer.start(scanCards);
+  });
 
-  // ── Process a single card ─────────────────────────────────────────────────
+  // ── P1: Claim dedup flag BEFORE first await to prevent race ──────────────
 
   async function processCard(cardEl) {
     if (cardEl.dataset.ggScored) return;
-    if (!settings.showBadges) return;
+    cardEl.dataset.ggScored = 'pending';   // claim before any await
+
+    if (!settings.showBadges) {
+      delete cardEl.dataset.ggScored;
+      return;
+    }
 
     let jobData;
-    try { jobData = scraper.extractFromCard(cardEl); } catch (e) { return; }
-    if (!jobData) return;
+    try { jobData = scraper.extractFromCard(cardEl); } catch (e) {
+      delete cardEl.dataset.ggScored;
+      return;
+    }
+    if (!jobData) { delete cardEl.dataset.ggScored; return; }
 
     // Cache check
     if (jobData.jobId) {
       const cached = await GhostGuard.storage.getCached(jobData.jobId);
       if (cached) {
+        cardEl.dataset.ggScored = '1';
         GhostGuard.badge.injectBadge(cardEl, cached);
         applyDim(cardEl, cached);
         return;
@@ -53,45 +63,50 @@
     }
 
     const result = GhostGuard.scorer.score(jobData);
+    cardEl.dataset.ggScored = '1';
     GhostGuard.badge.injectBadge(cardEl, result);
     applyDim(cardEl, result);
 
     if (jobData.jobId) {
-      GhostGuard.storage.setCache(jobData.jobId, result);
+      // P19: strip raw description before caching — scoring is done, no need to store it
+      const lean = { ...result, jobData: { ...result.jobData, descriptionText: '' } };
+      GhostGuard.storage.setCache(jobData.jobId, lean);
     }
   }
 
-  // ── Process detail pane ───────────────────────────────────────────────────
+  // ── Detail pane ───────────────────────────────────────────────────────────
 
   let lastDetailId = null;
 
+  // P5: reset on SPA navigation
+  function resetNavState() {
+    lastDetailId = null;
+  }
+
   async function processDetail() {
-    const detailSel = DETAIL_SELECTORS[platform];
-    const detailEl = document.querySelector(detailSel);
+    const detailEl = document.querySelector(DETAIL_SELECTORS[platform]);
     if (!detailEl) return;
 
     let jobData;
     try {
-      if (platform === 'linkedin') {
-        jobData = GhostGuard.scrapers.linkedin.extractFromDetail(detailEl);
-      } else if (platform === 'indeed') {
-        jobData = GhostGuard.scrapers.indeed.extractFromDetail(detailEl);
-      } else {
-        jobData = GhostGuard.scrapers.glassdoor.extractFromDetail(detailEl);
-      }
+      jobData = scraper.extractFromDetail
+        ? scraper.extractFromDetail(detailEl)
+        : GhostGuard.scrapers[platform].extractFromDetail(detailEl);
     } catch (e) { return; }
 
     if (!jobData) return;
-    const id = jobData.jobId || jobData.title + jobData.company;
+
+    // P18: include location in fallback id to reduce collisions
+    const id = jobData.jobId || (jobData.title + '|' + jobData.company + '|' + (jobData.location || ''));
     if (id === lastDetailId) return;
     lastDetailId = id;
 
     const result = GhostGuard.scorer.score(jobData);
 
-    // Find & update the active card badge if it exists
-    const activeCard = document.querySelector(`[data-job-id="${jobData.jobId}"], [data-occludable-job-id="${jobData.jobId}"]`);
+    const activeCard = document.querySelector(
+      `[data-job-id="${jobData.jobId}"], [data-occludable-job-id="${jobData.jobId}"]`
+    );
     if (activeCard) {
-      // Remove old badge, re-inject with richer data
       const oldBadge = activeCard.querySelector('.gg-badge-host');
       if (oldBadge) oldBadge.remove();
       delete activeCard.dataset.ggScored;
@@ -99,28 +114,23 @@
       applyDim(activeCard, result);
     }
 
-    if (jobData.jobId) GhostGuard.storage.setCache(jobData.jobId, result);
-  }
-
-  // ── Dim ghost listings ────────────────────────────────────────────────────
-
-  function applyDim(cardEl, result) {
-    if (settings.dimGhosts && result.tier.color === 'red') {
-      cardEl.style.opacity = '0.45';
-    } else {
-      cardEl.style.opacity = '';
+    if (jobData.jobId) {
+      const lean = { ...result, jobData: { ...result.jobData, descriptionText: '' } };
+      GhostGuard.storage.setCache(jobData.jobId, lean);
     }
   }
 
-  // ── Scan visible cards ────────────────────────────────────────────────────
+  function applyDim(cardEl, result) {
+    cardEl.style.opacity = (settings.dimGhosts && result.tier.color === 'red') ? '0.45' : '';
+  }
 
-  function scanCards() {
-    const sel = CARD_SELECTORS[platform];
-    document.querySelectorAll(sel).forEach(processCard);
+  function scanCards(resetNav) {
+    if (resetNav) resetNavState();
+    document.querySelectorAll(CARD_SELECTORS[platform]).forEach(processCard);
     processDetail();
   }
 
-  // ── Message handler (from popup) ──────────────────────────────────────────
+  // ── Message handler ───────────────────────────────────────────────────────
 
   chrome.runtime.onMessage.addListener((msg) => {
     switch (msg.type) {
@@ -128,27 +138,23 @@
         settings.showBadges = msg.value;
         GhostGuard.badge.setVisible(msg.value);
         break;
+      // P10: tooltip toggle now wired
+      case 'GG_SET_TOOLTIPS':
+        settings.showTooltips = msg.value;
+        GhostGuard.badge.setTooltipsEnabled(msg.value);
+        break;
       case 'GG_SET_DIM':
         settings.dimGhosts = msg.value;
-        // Re-apply dim state to all scored cards
-        document.querySelectorAll('[data-gg-scored]').forEach(card => {
+        document.querySelectorAll('[data-gg-scored="1"]').forEach(card => {
           const badge = card.querySelector('.gg-badge-host');
-          const score = badge ? parseInt(badge.dataset.ggScore, 10) : 0;
-          const tier = GhostGuard.scorer.tierFromScore(score);
-          if (msg.value && tier.color === 'red') {
-            card.style.opacity = '0.45';
-          } else {
-            card.style.opacity = '';
-          }
+          const s = badge ? parseInt(badge.dataset.ggScore, 10) : 0;
+          const tier = GhostGuard.scorer.tierFromScore(s);
+          card.style.opacity = (msg.value && tier.color === 'red') ? '0.45' : '';
         });
         break;
       case 'GG_RESET_STATS':
         break;
     }
   });
-
-  // ── Start ─────────────────────────────────────────────────────────────────
-
-  GhostGuard.observer.start(scanCards);
 
 }());

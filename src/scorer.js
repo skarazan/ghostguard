@@ -51,7 +51,8 @@ GhostGuard.scorer = (function () {
     },
 
     function noSalaryRange(d) {
-      const hasSalary = /\$\d+|\bsalary\b|\bcompensation\b|\bpay range\b|\bper (hour|hr|year|yr|annum)\b/i.test(d.salaryText || '');
+      // P6: only numeric salary evidence counts — bare word "salary" is not a disclosed range
+      const hasSalary = /\$\d+|\bpay range\b|\bper (hour|hr|year|yr|annum)\b|\d+k?\s*(per|\/)\s*(hour|hr|year|yr)/i.test(d.salaryText || '');
       const triggered = !hasSalary;
       return { triggered, points: triggered ? 15 : 0, label: 'No salary range listed' };
     },
@@ -78,6 +79,9 @@ GhostGuard.scorer = (function () {
     // Tier 2 — medium ─────────────────────────────────────────────────────
 
     function competitiveSalaryPhrase(d) {
+      // P7: don't penalise if a real number is already present in the salary field
+      const hasRealSalary = /\$\d+/.test(d.salaryText || '');
+      if (hasRealSalary) return { triggered: false, points: 0, label: '' };
       const triggered = /competitive\s+(salary|comp|compensation|package|pay)/i.test(
         (d.descriptionText || '') + ' ' + (d.salaryText || '')
       );
@@ -165,7 +169,11 @@ GhostGuard.scorer = (function () {
     function knownGhoster(d) {
       const company = (d.company || '').toLowerCase();
       const list = GhostGuard.data.knownGhosters || [];
-      const triggered = list.some(g => company.includes(g));
+      // P16: word-boundary match prevents "meta" hitting "metamorphic inc"
+      const triggered = list.some(g => {
+        const escaped = g.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`(?:^|\\s|,)${escaped}(?:\\s|,|$)`, 'i').test(company);
+      });
       return { triggered, points: triggered ? 20 : 0, label: 'Company in known ghost-poster list' };
     },
 

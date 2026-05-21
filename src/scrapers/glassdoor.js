@@ -28,7 +28,8 @@ GhostGuard.scrapers.glassdoor = (function () {
                 (anchor.href || '').match(/GD_JOB_AD\/\d+\/pos\/(\d+)/i);
       if (m) return `gd_${m[1]}`;
       // Use href hash as fallback id
-      return `gd_${btoa(anchor.href).slice(0, 16)}`;
+      // P14: encodeURIComponent prevents btoa() from throwing on non-ASCII URLs
+      try { return `gd_${btoa(encodeURIComponent(anchor.href)).slice(0, 16)}`; } catch (_) { return null; }
     }
     return null;
   }
@@ -107,6 +108,8 @@ GhostGuard.scrapers.glassdoor = (function () {
     if (descEl) descriptionText = descEl.innerText || descEl.textContent || '';
 
     const hasExternalLink = !!panelEl.querySelector('a[href*="apply"][href*="http"]:not([href*="glassdoor.com"])');
+    // P13: detect Easy Apply explicitly rather than inferring from absence of external link
+    const easyApply = !!panelEl.querySelector('[data-test="easyApply"], button[aria-label*="Easy Apply"], [class*="EasyApply"]');
 
     return {
       jobId: null,
@@ -118,7 +121,7 @@ GhostGuard.scrapers.glassdoor = (function () {
       applicantCount: null,
       salaryText,
       hasExternalLink,
-      easyApply: !hasExternalLink,
+      easyApply,
       descriptionText,
       posterVisible: false,
       verifiedCompany: false,
