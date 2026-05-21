@@ -30,21 +30,17 @@ GhostGuard.observer = (function () {
 
     mo.observe(document.body, { childList: true, subtree: true });
 
-    // P5: SPA navigation — intercept history.pushState and popstate
-    const _push = history.pushState.bind(history);
-    history.pushState = function (...args) {
-      _push(...args);
-      // Pass resetNav=true so content.js clears lastDetailId
-      debounce(() => processCardsFn(true), 300);
-    };
+    // SPA navigation — poll URL instead of patching pushState
+    // (LinkedIn's React router overwrites pushState after our injection)
+    let lastHref = location.href;
+    setInterval(() => {
+      if (location.href !== lastHref) {
+        lastHref = location.href;
+        debounce(() => processCardsFn(true), 100);
+      }
+    }, 250);
 
-    const _replace = history.replaceState.bind(history);
-    history.replaceState = function (...args) {
-      _replace(...args);
-      debounce(() => processCardsFn(true), 300);
-    };
-
-    window.addEventListener('popstate', () => debounce(() => processCardsFn(true), 300));
+    window.addEventListener('popstate', () => debounce(() => processCardsFn(true), 100));
 
     // Initial run
     processCardsFn(false);
