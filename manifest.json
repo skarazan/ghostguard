@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "GhostGuard — Spot Ghost Jobs",
+  "version": "1.0.0",
+  "description": "Automatically scores LinkedIn, Indeed, and Glassdoor job listings for legitimacy.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://www.indeed.com/*",
+    "https://www.glassdoor.com/*"
+  ],
+  "content_scripts": [{
+    "matches": [
+      "https://www.linkedin.com/jobs/*",
+      "https://www.indeed.com/*",
+      "https://www.glassdoor.com/Job/*"
+    ],
+    "js": [
+      "src/storage.js",
+      "src/data/buzzwords.js",
+      "src/data/tech-keywords.js",
+      "src/data/known-ghosters.js",
+      "src/scorer.js",
+      "src/badge.js",
+      "src/scrapers/linkedin.js",
+      "src/scrapers/indeed.js",
+      "src/scrapers/glassdoor.js",
+      "src/observer.js",
+      "src/content.js"
+    ],
+    "css": ["styles/badge.css", "styles/tooltip.css"],
+    "run_at": "document_idle"
+  }],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

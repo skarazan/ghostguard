@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GhostGuard</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="gg-popup">
+    <header class="gg-header">
+      <img src="../../icons/icon48.png" alt="" class="gg-logo" width="24" height="24">
+      <span class="gg-brand">GhostGuard</span>
+    </header>
+
+    <section class="gg-stats">
+      <div class="gg-stats-title">This session</div>
+      <div class="gg-stats-grid">
+        <div class="gg-stat-row">
+          <span class="gg-dot green"></span>
+          <span class="gg-stat-label">Likely real</span>
+          <span class="gg-stat-val" id="stat-green">—</span>
+          <span class="gg-stat-pct" id="pct-green"></span>
+        </div>
+        <div class="gg-stat-row">
+          <span class="gg-dot yellow"></span>
+          <span class="gg-stat-label">Caution</span>
+          <span class="gg-stat-val" id="stat-yellow">—</span>
+          <span class="gg-stat-pct" id="pct-yellow"></span>
+        </div>
+        <div class="gg-stat-row">
+          <span class="gg-dot red"></span>
+          <span class="gg-stat-label">Likely ghost</span>
+          <span class="gg-stat-val" id="stat-red">—</span>
+          <span class="gg-stat-pct" id="pct-red"></span>
+        </div>
+        <div class="gg-stat-row gg-stat-total">
+          <span class="gg-stat-label" style="margin-left:15px">Total scanned</span>
+          <span class="gg-stat-val" id="stat-total">—</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="gg-settings">
+      <label class="gg-toggle-row">
+        <input type="checkbox" id="toggle-badges" checked>
+        <span class="gg-toggle-label">Show score badges</span>
+      </label>
+      <label class="gg-toggle-row">
+        <input type="checkbox" id="toggle-tooltips" checked>
+        <span class="gg-toggle-label">Show tooltips on hover</span>
+      </label>
+      <label class="gg-toggle-row">
+        <input type="checkbox" id="toggle-dim">
+        <span class="gg-toggle-label">Dim likely ghost jobs</span>
+      </label>
+    </section>
+
+    <footer class="gg-footer">
+      <button class="gg-btn-ghost" id="btn-reset">Reset session stats</button>
+      <a class="gg-link" href="https://github.com/skarazan/ghostguard/issues" target="_blank">Help / Feedback</a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+/* Tooltip base — actual tooltip rendered in Shadow DOM per badge */
+
+.gg-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999998;
+  background: rgba(0,0,0,0.3);
+}
+
+.gg-detail-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 340px;
+  max-width: 95vw;
+  height: 100vh;
+  z-index: 999999;
+  background: #fff;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.18);
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.gg-detail-panel.gg-open {
+  transform: translateX(0);
+}
+
+@media (prefers-color-scheme: dark) {
+  .gg-detail-panel { background: #1e1b4b; color: #e2e8f0; }
+  .gg-panel-backdrop { background: rgba(0,0,0,0.5); }
+}

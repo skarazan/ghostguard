@@ -1,0 +1,10 @@
+/* GhostGuard badge styles — injected globally, Shadow DOM used per-badge */
+
+.gg-badge-host {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
+  position: relative;
+  z-index: 9999;
+  line-height: 1;
+}
