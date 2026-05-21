@@ -144,7 +144,14 @@
   }
 
   function scanCards(resetNav) {
-    if (resetNav) resetNavState();
+    if (resetNav) {
+      resetNavState();
+      // Clear stale markers + remove old badges so reused DOM nodes get re-scored
+      document.querySelectorAll('[data-gg-scored]').forEach(el => {
+        delete el.dataset.ggScored;
+        el.querySelectorAll('.gg-badge-host').forEach(b => b.remove());
+      });
+    }
     document.querySelectorAll(CARD_SELECTORS[platform]).forEach(processCard);
     processDetail();
   }
