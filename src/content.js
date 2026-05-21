@@ -180,6 +180,18 @@
           break;
         case 'GG_RESET_STATS':
           break;
+        case 'GG_NAV_CHANGED':
+          // Background script detected a pushState navigation to a job page
+          scanCards(true);
+          // Retry for 3s in case React hasn't rendered cards yet
+          let navAttempts = 0;
+          const navRetry = setInterval(() => {
+            if (document.querySelectorAll(CARD_SELECTORS[platform]).length > 0 || ++navAttempts >= 10) {
+              clearInterval(navRetry);
+            }
+            scanCards(false);
+          }, 300);
+          break;
       }
     });
   } catch (_) {}
