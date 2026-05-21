@@ -2,18 +2,27 @@
 
 (function () {
 
+  function hasRuntimeAccess() {
+    try {
+      return !!chrome?.runtime?.id;
+    } catch (_) {
+      return false;
+    }
+  }
+
   const host = window.location.hostname;
   const isLinkedIn  = host.includes('linkedin.com');
   const isIndeed    = host.includes('indeed.com');
   const isGlassdoor = host.includes('glassdoor.com');
 
   if (!isLinkedIn && !isIndeed && !isGlassdoor) return;
+  if (!hasRuntimeAccess()) return;
 
   const CARD_SELECTORS = {
-    linkedin:  '.job-card-container, .jobs-search-results__list-item, [data-occludable-job-id]',
-    indeed:    '.job_seen_beacon, .jobsearch-ResultsList > li[class], .resultContent',
-    // data-test="jobListing" is the stable anchor; class* fallbacks for older builds
-    glassdoor: '[data-test="jobListing"], [class*="JobsList_jobListItem"], [class*="jobCard"]'
+    // Single selector per platform — multiple selectors match nested elements and produce duplicate badges
+    linkedin:  '[data-occludable-job-id]',
+    indeed:    '.job_seen_beacon',
+    glassdoor: '[data-test="jobListing"]'
   };
 
   const DETAIL_SELECTORS = {
@@ -28,10 +37,14 @@
   let settings = { showBadges: true, showTooltips: true, dimGhosts: false };
 
   // ── P15: await settings before starting observer ──────────────────────────
-  GhostGuard.storage.getSettings().then(s => {
-    settings = s;
-    GhostGuard.observer.start(scanCards);
-  });
+  GhostGuard.storage.getSettings()
+    .then(s => {
+      settings = s;
+    })
+    .catch(() => {})
+    .finally(() => {
+      GhostGuard.observer.start(scanCards);
+    });
 
   // ── P1: Claim dedup flag BEFORE first await to prevent race ──────────────
 
@@ -103,6 +116,8 @@
 
     const result = GhostGuard.scorer.score(jobData);
 
+    GhostGuard.badge.injectDetailBadge(detailEl, result);
+
     const activeCard = document.querySelector(
       `[data-job-id="${jobData.jobId}"], [data-occludable-job-id="${jobData.jobId}"]`
     );
@@ -132,29 +147,30 @@
 
   // ── Message handler ───────────────────────────────────────────────────────
 
-  chrome.runtime.onMessage.addListener((msg) => {
-    switch (msg.type) {
-      case 'GG_SET_BADGES':
-        settings.showBadges = msg.value;
-        GhostGuard.badge.setVisible(msg.value);
-        break;
-      // P10: tooltip toggle now wired
-      case 'GG_SET_TOOLTIPS':
-        settings.showTooltips = msg.value;
-        GhostGuard.badge.setTooltipsEnabled(msg.value);
-        break;
-      case 'GG_SET_DIM':
-        settings.dimGhosts = msg.value;
-        document.querySelectorAll('[data-gg-scored="1"]').forEach(card => {
-          const badge = card.querySelector('.gg-badge-host');
-          const s = badge ? parseInt(badge.dataset.ggScore, 10) : 0;
-          const tier = GhostGuard.scorer.tierFromScore(s);
-          card.style.opacity = (msg.value && tier.color === 'red') ? '0.45' : '';
-        });
-        break;
-      case 'GG_RESET_STATS':
-        break;
-    }
-  });
+  try {
+    chrome.runtime.onMessage.addListener((msg) => {
+      switch (msg.type) {
+        case 'GG_SET_BADGES':
+          settings.showBadges = msg.value;
+          GhostGuard.badge.setVisible(msg.value);
+          break;
+        case 'GG_SET_TOOLTIPS':
+          settings.showTooltips = msg.value;
+          GhostGuard.badge.setTooltipsEnabled(msg.value);
+          break;
+        case 'GG_SET_DIM':
+          settings.dimGhosts = msg.value;
+          document.querySelectorAll('[data-gg-scored="1"]').forEach(card => {
+            const badge = card.querySelector('.gg-badge-host');
+            const s = badge ? parseInt(badge.dataset.ggScore, 10) : 0;
+            const tier = GhostGuard.scorer.tierFromScore(s);
+            card.style.opacity = (msg.value && tier.color === 'red') ? '0.45' : '';
+          });
+          break;
+        case 'GG_RESET_STATS':
+          break;
+      }
+    });
+  } catch (_) {}
 
 }());
