@@ -178,6 +178,42 @@ GhostGuard.badge = (function () {
     }
   }
 
+  function injectLoadingBadge(containerEl) {
+    if (!containerEl) return;
+    containerEl.querySelectorAll('.gg-detail-badge-anchor').forEach(el => el.remove());
+
+    const host = document.createElement('span');
+    host.className = 'gg-badge-host gg-loading';
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: inline-flex; vertical-align: middle; }
+        .gg-pill {
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+          background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          animation: gg-pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes gg-pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+        .gg-dot { width:6px;height:6px;border-radius:50%;background:#94a3b8;flex-shrink:0; }
+      </style>
+      <div class="gg-pill"><span class="gg-dot"></span>Scoring…</div>
+    `;
+
+    const anchor = document.createElement('div');
+    anchor.className = 'gg-detail-badge-anchor';
+    anchor.style.cssText = 'display:flex;align-items:center;gap:8px;margin:8px 0 12px';
+    anchor.appendChild(host);
+
+    const titleEl = containerEl.querySelector('.jobs-unified-top-card__job-title, .t-24.t-bold, h1');
+    if (titleEl?.parentElement) {
+      titleEl.insertAdjacentElement('afterend', anchor);
+    } else {
+      containerEl.prepend(anchor);
+    }
+  }
+
   function injectDetailBadge(containerEl, result) {
     if (!containerEl || !result) return;
 
@@ -351,5 +387,5 @@ GhostGuard.badge = (function () {
     });
   }
 
-  return { injectBadge, injectDetailBadge, openDetailPanel, closeDetailPanel, setVisible, setTooltipsEnabled };
+  return { injectBadge, injectDetailBadge, injectLoadingBadge, openDetailPanel, closeDetailPanel, setVisible, setTooltipsEnabled };
 }());

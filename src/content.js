@@ -114,6 +114,10 @@
     if (id === lastDetailId) return;
     lastDetailId = id;
 
+    // Show loading badge immediately; yield one frame so it renders before scoring
+    GhostGuard.badge.injectLoadingBadge(detailEl);
+    await new Promise(r => setTimeout(r, 0));
+
     const result = GhostGuard.scorer.score(jobData);
 
     GhostGuard.badge.injectDetailBadge(detailEl, result);

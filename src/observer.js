@@ -24,7 +24,7 @@ GhostGuard.observer = (function () {
 
     mo = new MutationObserver((mutations) => {
       if (isExternalMutation(mutations)) {
-        debounce(() => processCardsFn(false), 150);
+        debounce(() => processCardsFn(false), 50);
       }
     });
 
